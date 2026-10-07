@@ -1,0 +1,309 @@
+{
+  "name": "HEEKTOR - Sprawdź mejle (READ ONLY)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "HEEKTOR Support Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.message.from.id) }}",
+              "rightValue": "TWOJ_USER_ID",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ String($json.message.chat.id) }}",
+              "rightValue": "TWOJ_CHAT_ID",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "AUTHORIZED OWNER?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c3",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase().trim() }}",
+              "rightValue": "sprawdź mejle",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Komenda: sprawdź mejle?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 50,
+        "simple": true,
+        "filters": {
+          "q": "in:inbox is:unread newer_than:30d"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "Gmail: Inbox UNREAD",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        -60
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail HEEKTOR"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 100,
+        "simple": true,
+        "filters": {
+          "q": "in:sent newer_than:30d"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "Gmail: Sent",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        -60
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail HEEKTOR"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const unread = $('Gmail: Inbox UNREAD').all().map(i => i.json);\nconst sent = $('Gmail: Sent').all().map(i => i.json);\nconst lastSentByThread = {};\nfor (const s of sent) {\n  const t = s.threadId; const ts = Number(s.internalDate || 0);\n  if (!lastSentByThread[t] || ts > lastSentByThread[t]) lastSentByThread[t] = ts;\n}\nconst seen = new Set(); const pending = [];\nfor (const m of unread) {\n  if (seen.has(m.threadId)) continue; seen.add(m.threadId);\n  const ts = Number(m.internalDate || 0);\n  // pomijamy wątki, w których support odpisał PO ostatnim mailu klienta\n  if (lastSentByThread[m.threadId] && lastSentByThread[m.threadId] > ts) continue;\n  pending.push(m);\n}\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nlet text = pending.length ? `📬 Do obsłużenia: ${pending.length}\\n\\n` : '✅ Brak nieobsłużonych maili.';\npending.slice(0, 30).forEach((m, i) => {\n  text += `${i + 1}. ${m.From || m.from?.text || '?'}\\n   ${m.Subject || m.subject || '(brak tematu)'}\\n`;\n});\nreturn [{ json: { chatId, text } }];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000006",
+      "name": "Porównaj z Sent (dedup)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000007",
+      "name": "Telegram: lista",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        -60
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "HEEKTOR Support Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=Nieznana komenda: {{ $json.message.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000008",
+      "name": "Telegram: nieznana komenda",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        120
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "HEEKTOR Support Bot"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "b2000000-0000-4000-8000-000000000009",
+      "name": "STOP (obcy)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        480,
+        180
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "AUTHORIZED OWNER?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUTHORIZED OWNER?": {
+      "main": [
+        [
+          {
+            "node": "Komenda: sprawdź mejle?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "STOP (obcy)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Komenda: sprawdź mejle?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Inbox UNREAD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram: nieznana komenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Inbox UNREAD": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Sent": {
+      "main": [
+        [
+          {
+            "node": "Porównaj z Sent (dedup)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Porównaj z Sent (dedup)": {
+      "main": [
+        [
+          {
+            "node": "Telegram: lista",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
