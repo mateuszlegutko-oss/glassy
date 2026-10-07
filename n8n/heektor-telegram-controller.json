@@ -1,0 +1,77 @@
+{
+  "name": "HEEKTOR - Telegram Controller",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message", "callback_query"],
+        "additionalFields": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "webhookId": "heektor-telegram-controller",
+      "credentials": { "telegramApi": { "id": "", "name": "HEEKTOR Support Bot" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.message.from.id) }}",
+              "rightValue": "TWOJ_USER_ID",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ String($json.message.chat.id) }}",
+              "rightValue": "TWOJ_CHAT_ID",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "AUTHORIZED OWNER?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=✅ HEEKTOR Support działa.\nOdebrałem: {{ $json.message.text }}",
+        "additionalFields": { "appendAttribution": false }
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Odpowiedz właścicielowi",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [520, -80],
+      "credentials": { "telegramApi": { "id": "", "name": "HEEKTOR Support Bot" } }
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "STOP (obcy użytkownik)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [520, 100]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": { "main": [[{ "node": "AUTHORIZED OWNER?", "type": "main", "index": 0 }]] },
+    "AUTHORIZED OWNER?": {
+      "main": [
+        [{ "node": "Odpowiedz właścicielowi", "type": "main", "index": 0 }],
+        [{ "node": "STOP (obcy użytkownik)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
